@@ -1,0 +1,103 @@
+name: 'ESO Addon API Version Refresh'
+description: "Bumps an addon manifest's APIVersion pair (current, current+1) if it has fallen behind, committing and pushing the change."
+author: 'MPHONlC'
+branding:
+  icon: 'refresh-cw'
+  color: 'purple'
+
+inputs:
+  manifest_file:
+    description: 'Path to the .addon manifest file'
+    required: true
+  git_name:
+    description: 'Git name to use for the refresh commit'
+    required: true
+  git_email:
+    description: 'Git email to use for the refresh commit'
+    required: true
+
+outputs:
+  result:
+    description: "One of: updated, up_to_date, extraction_failed"
+    value: ${{ steps.refresh.outputs.result }}
+  old_api:
+    description: 'The declared APIVersion pair before this run'
+    value: ${{ steps.refresh.outputs.current }}
+  new_api:
+    description: 'The declared APIVersion pair after this run (only set if updated)'
+    value: ${{ steps.refresh.outputs.new }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check esoui/esoui for the current live API version
+      id: refresh
+      shell: bash
+      env:
+        MANIFEST: ${{ inputs.manifest_file }}
+        GIT_NAME: ${{ inputs.git_name }}
+        GIT_EMAIL: ${{ inputs.git_email }}
+      run: |
+        README_CONTENT=$(curl -sL "https://raw.githubusercontent.com/esoui/esoui/live/README.md")
+        NEW_API=$(echo "$README_CONTENT" | grep -oP '\(API \K[0-9]+' | head -1)
+
+        CURRENT_LINE=$(grep "^## APIVersion:" "$MANIFEST")
+        CURRENT_FIRST=$(echo "$CURRENT_LINE" | awk '{print $3}')
+        CURRENT_SECOND=$(echo "$CURRENT_LINE" | awk '{print $4}')
+
+        echo "Current manifest line: $CURRENT_LINE"
+        echo "esoui/esoui reports:   API $NEW_API"
+        echo "current=$CURRENT_FIRST $CURRENT_SECOND" >> "$GITHUB_OUTPUT"
+
+        if ! [[ "$NEW_API" =~ ^[0-9]{5,7}$ ]]; then
+          echo "Could not extract a valid API version - aborting without changing anything."
+          echo "result=extraction_failed" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [ "$NEW_API" -le "$CURRENT_FIRST" ]; then
+          echo "No newer API version than what's already declared - nothing to do."
+          echo "result=up_to_date" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        NEW_SECOND=$((NEW_API + 1))
+        sed -i "s/## APIVersion: $CURRENT_FIRST $CURRENT_SECOND/## APIVersion: $NEW_API $NEW_SECOND/" "$MANIFEST"
+        echo "Updated to: $(grep '^## APIVersion:' "$MANIFEST")"
+
+        git config user.name "$GIT_NAME"
+        git config user.email "$GIT_EMAIL"
+        git add "$MANIFEST"
+        git commit -m "chore: bump APIVersion to $NEW_API $NEW_SECOND (esoui/esoui reports API $NEW_API live)"
+        git push
+        echo "new=$NEW_API $NEW_SECOND" >> "$GITHUB_OUTPUT"
+        echo "result=updated" >> "$GITHUB_OUTPUT"
+
+    - name: Annotate result
+      if: always()
+      shell: bash
+      run: |
+        STATUS="${{ steps.refresh.outcome }}"
+        RESULT="${{ steps.refresh.outputs.result }}"
+        CURRENT="${{ steps.refresh.outputs.current }}"
+        NEW="${{ steps.refresh.outputs.new }}"
+        AFTER="${NEW:-$CURRENT}"
+        if [ "$STATUS" != "success" ]; then
+          TITLE="API Version Refresh Failed"
+          echo "::error title=$TITLE::Check the 'Check esoui/esoui for the current live API version' step's log above."
+        elif [ "$RESULT" == "updated" ]; then
+          TITLE="API Version Refresh Complete"
+          echo "::notice title=$TITLE::APIVersion updated from $CURRENT to $NEW and pushed."
+        elif [ "$RESULT" == "up_to_date" ]; then
+          TITLE="API Version Already Up To Date"
+          echo "::notice title=$TITLE::Declared API $CURRENT already matches or exceeds what esoui/esoui reports live."
+        else
+          TITLE="API Version Refresh Skipped"
+          echo "::warning title=$TITLE::Could not extract a valid API version number from esoui/esoui's README - nothing changed."
+        fi
+        {
+          echo "## $TITLE"
+          echo ""
+          echo "- **Declared API (before):** $CURRENT"
+          echo "- **Declared API (after):** $AFTER"
+        } >> "$GITHUB_STEP_SUMMARY"
