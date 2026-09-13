@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: MPHONlC/eso-api-version-refresh@Version-0.0.1
+      - uses: MPHONlC/eso-api-version-refresh@Version-0.0.2
         with:
           manifest_file: 'MyAddon.addon'
           git_name: 'YourGitName'
