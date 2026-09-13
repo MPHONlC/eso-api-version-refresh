@@ -2,7 +2,7 @@
 
 Checks the [esoui/esoui](https://github.com/esoui/esoui) repo's own live README - which states the Elder Scrolls Online client's current live API version in plain text - and bumps your addon manifest's `## APIVersion:` pair (`current`, `current+1`) if it's fallen behind, committing and pushing the change.
 
-The "current+1" convention is a common ESO addon-dev practice: declaring the next API version alongside the current one is a preemptive "probably still works on the next patch too" statement. A stale-but-lower declared `APIVersion` shows as "Out of Date" in the in-game Add-On Manager but doesn't hard-block loading, so pre-declaring compatibility ahead of manual testing is a widely accepted, low-risk convention - though you should still verify your addon actually works after each real ESO update.
+Declaring the next API version alongside the current one is a preemptive "probably still works on the next patch too" statement: a stale-but-lower declared `APIVersion` shows as "Out of Date" in the in-game Add-On Manager but doesn't hard-block loading. You should still verify your addon actually works after each real ESO update.
 
 ## Usage
 
