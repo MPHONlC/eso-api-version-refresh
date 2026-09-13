@@ -54,6 +54,12 @@ jobs:
 - The calling job needs `permissions: contents: write`, since this action pushes directly.
 - No secrets required - the source it reads (`raw.githubusercontent.com/esoui/esoui`) is public.
 
+> [!IMPORTANT]
+> Without `permissions: contents: write` on the job, the commit/push step fails - this is the most common setup mistake with this action.
+
+> [!WARNING]
+> The `result: extraction_failed` output means the regex that scrapes `esoui/esoui`'s own README for its current live API version didn't match anything - most likely because esoui/esoui changed the wording or formatting of that line. This doesn't fail the job or touch your manifest, but it does mean the check silently did nothing that run; worth watching for if esoui/esoui ever restructures their README.
+
 ## License
 
 MIT - see [LICENSE](LICENSE).
